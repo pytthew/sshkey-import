@@ -1,0 +1,43 @@
+#!/bin/bash
+cd /home
+read -s -p password? pass
+echo
+keys=.ssh/authorized_keys
+login=`logname`
+sshpass -p $pass ssh $login@$1 ls -1 /home >users
+
+if [ -z $2 ]; then
+	users=`cat users`
+else
+	users=`grep "$2" users`
+fi
+
+echo $users
+
+echo collecting...
+for user in $users; do
+	if test -f $user/$keys; then
+		cp -v $user/$keys keys/$user
+	fi
+done
+
+ssh="sshpass -p $pass"
+$ssh scp -r keys/ $login@$1:
+
+echo copying...
+for user in $users; do
+read -r -d '' SSH << EOF
+        sudo       -u $user mkdir ../$user/.ssh 2>/dev/null
+        sudo    mv -v  keys/$user ../$user/$keys
+EOF
+	if test -f $user/$keys; then
+		$ssh ssh -q $1 -l $login -t "$SSH"
+	fi
+done
+
+echo setting...
+for user in $users; do
+	if test -f $user/$keys; then
+		$ssh ssh -q $1 -l $login -t sudo chown -v $user:$user ../$user/$keys
+	fi
+done
